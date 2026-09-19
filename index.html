@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Parametrizador de Unidades de Venta Minorista</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --border:#e2e4e9; --text:#1c1e21; --muted:#6b7280;
+  --accent:#2563eb; --accent-ink:#ffffff; --canvas-bg:#fbfbfc; --grid:#e6e8ec;
+  --danger:#dc2626; --success:#16a34a; --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15161a; --panel:#1e2025; --border:#2c2f36; --text:#eceef1; --muted:#9aa0aa;
+    --accent:#5b8cff; --accent-ink:#0b0d10; --canvas-bg:#101114; --grid:#25272e;
+    --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15161a; --panel:#1e2025; --border:#2c2f36; --text:#eceef1; --muted:#9aa0aa;
+  --accent:#5b8cff; --accent-ink:#0b0d10; --canvas-bg:#101114; --grid:#25272e;
+  --shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+header{
+  display:flex; align-items:center; gap:10px; padding:14px 18px;
+  padding-top:calc(14px + env(safe-area-inset-top,0px));
+  background:var(--panel); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:50;
+  flex-wrap:wrap;
+}
+header h1{font-size:16px; margin:0; font-weight:700; flex:1 1 auto; min-width:200px;}
+header h1 span{display:block; font-size:12px; font-weight:400; color:var(--muted); margin-top:2px;}
+.btn{
+  border:1px solid var(--border); background:var(--panel); color:var(--text);
+  padding:8px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; font-weight:600;
+  display:inline-flex; align-items:center; gap:6px; white-space:nowrap; transition:.15s;
+}
+.btn:hover{border-color:var(--accent);}
+.btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.btn.primary:hover{filter:brightness(1.08);}
+.btn.danger{color:var(--danger); border-color:var(--danger);}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.4; cursor:not-allowed;}
+.theme-toggle{width:34px; height:34px; padding:0; justify-content:center; border-radius:50%;}
+
+.layout{ display:grid; grid-template-columns: 260px 1fr 300px; gap:14px; padding:14px; align-items:start; }
+@media (max-width: 980px){ .layout{grid-template-columns: 1fr;} }
+
+.panel{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
+.panel h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0; padding:12px 14px; border-bottom:1px solid var(--border);}
+.panel .body{padding:12px 14px;}
+
+.tabs{display:flex; gap:4px; padding:8px 8px 0; overflow-x:auto;}
+.tab{ flex:1; text-align:center; padding:8px 4px; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; border-radius:8px 8px 0 0; white-space:nowrap;}
+.tab.active{color:var(--accent); background:var(--canvas-bg);}
+.catalog-list{ display:flex; flex-direction:column; gap:6px; padding:10px; max-height:40vh; overflow-y:auto;}
+.cat-item{
+  display:flex; align-items:center; gap:10px; padding:8px; border:1px solid var(--border); border-radius:8px;
+  cursor:pointer; background:var(--canvas-bg); font-size:13px;
+}
+.cat-item:hover{border-color:var(--accent);}
+.cat-item.selected{border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);}
+.swatch{width:22px; height:22px; border-radius:5px; flex-shrink:0; border:1px solid rgba(0,0,0,.15);}
+.cat-item .meta{flex:1; min-width:0;}
+.cat-item .meta b{display:block; font-size:12.5px;}
+.cat-item .meta small{color:var(--muted); font-size:11px;}
+
+.field{margin-bottom:10px;}
+.field label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;}
+.field input, .field select{
+  width:100%; padding:7px 9px; border-radius:7px; border:1px solid var(--border);
+  background:var(--canvas-bg); color:var(--text); font-size:13px;
+}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;}
+
+.canvas-wrap{ position:relative; background:var(--canvas-bg); border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); }
+.canvas-toolbar{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; background:var(--panel);}
+.canvas-toolbar .sep{width:1px; height:20px; background:var(--border); margin:0 2px;}
+.mode-btn{ padding:6px 10px; border-radius:7px; border:1px solid var(--border); background:var(--canvas-bg); font-size:12px; cursor:pointer; color:var(--text); font-weight:600;}
+.mode-btn.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+#stage{ display:block; touch-action:none; cursor:crosshair; width:100%; height:auto;}
+.hint{ font-size:11.5px; color:var(--muted); padding:8px 12px; border-top:1px solid var(--border);}
+
+.summary-row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px dashed var(--border);}
+.summary-row b{font-variant-numeric:tabular-nums;}
+.total{font-size:16px; font-weight:800; margin-top:8px; padding-top:8px; border-top:2px solid var(--border); display:flex; justify-content:space-between;}
+.item-list{max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:8px;}
+.item-row{display:flex; align-items:center; gap:8px; font-size:12.5px; padding:6px 8px; background:var(--canvas-bg); border-radius:7px; border:1px solid var(--border);}
+.item-row .dot{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
+.item-row .name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.item-row button{background:none; border:none; color:var(--danger); cursor:pointer; font-size:14px; padding:2px 6px;}
+.empty{color:var(--muted); font-size:12.5px; text-align:center; padding:14px 6px;}
+
+.rot-controls{display:flex; align-items:center; gap:6px; margin-bottom:10px;}
+.rot-controls button{flex:0 0 auto; padding:7px 10px; border-radius:7px; border:1px solid var(--border); background:var(--canvas-bg); color:var(--text); cursor:pointer; font-size:14px;}
+.rot-controls input{flex:1; width:auto;}
+
+/* modals */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:200; padding:16px;
+  padding-top:calc(16px + env(safe-area-inset-top,0px)); padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+}
+.modal-overlay.open{display:flex;}
+.modal-box{ background:var(--panel); border-radius:14px; width:min(96vw, 1100px); height:min(88vh, 760px); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border);}
+.modal-box.small{height:auto; max-height:88vh; width:min(94vw,480px);}
+.modal-box.wide{width:min(96vw,900px); height:min(85vh,680px);}
+.modal-head{display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border);}
+.modal-head h3{margin:0; font-size:14px;}
+.modal-body{padding:16px; overflow-y:auto; flex:1;}
+#three-container{flex:1; position:relative; background:#0b0d10;}
+#three-container canvas{width:100%!important; height:100%!important; display:block;}
+.render-hint{position:absolute; bottom:10px; left:12px; font-size:11px; color:#c7c9cf; background:rgba(0,0,0,.4); padding:5px 9px; border-radius:6px;}
+
+.status-pill{ font-size:11px; padding:4px 9px; border-radius:99px; background:var(--canvas-bg); border:1px solid var(--border); color:var(--muted); font-weight:600;}
+
+.proj-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px;}
+.proj-card{border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--canvas-bg); cursor:pointer; transition:.15s;}
+.proj-card:hover{border-color:var(--accent);}
+.proj-card img{width:100%; height:110px; object-fit:cover; display:block; background:#000;}
+.proj-card .pc-body{padding:8px 10px;}
+.proj-card .pc-name{font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.proj-card .pc-date{font-size:11px; color:var(--muted); margin-top:2px;}
+.proj-card .pc-actions{display:flex; gap:6px; padding:0 10px 10px;}
+.proj-card .pc-actions button{flex:1; font-size:11px; padding:5px 4px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:var(--text); cursor:pointer;}
+.proj-card .pc-actions button.del{color:var(--danger); border-color:var(--danger);}
+.deploy-box{background:var(--canvas-bg); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12.5px; line-height:1.6; margin-top:6px;}
+.deploy-box code{background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; font-size:11.5px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="headerTitle">🏬 Parametrizador de Puntos de Venta<span id="projSubtitle">Sin guardar aún · Diseña la planta, coloca mobiliario y estima costos</span></h1>
+  <span class="status-pill" id="areaPill">Área: 0 m²</span>
+  <button class="btn" id="uploadPlanBtn">📐 Subir plano</button>
+  <input type="file" id="planInput" accept="image/*" style="display:none">
+  <button class="btn" id="projectsBtn">📁 Mis proyectos</button>
+  <button class="btn" id="saveProjectBtn">💾 Guardar</button>
+  <button class="btn" id="pdfBtn">📄 Descargar PDF</button>
+  <button class="btn primary" id="open3dBtn">🧊 Ver render 3D</button>
+  <button class="btn" id="deployBtn">☁️ Publicar</button>
+  <button class="btn theme-toggle" id="themeBtn" title="Cambiar tema">🌗</button>
+</header>
+
+<div class="layout">
+
+  <div class="panel">
+    <h2>Catálogo</h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="catalog-list" id="catalogList"></div>
+    <div class="body" style="border-top:1px solid var(--border); padding-top:10px;">
+      <div class="field">
+        <label>Escala del plano (m por celda de cuadrícula)</label>
+        <input type="number" id="cellSize" value="1" step="0.1" min="0.1">
+      </div>
+      <div class="field">
+        <label>Opacidad del plano de referencia</label>
+        <input type="range" id="planOpacity" min="0" max="100" value="55">
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <button class="mode-btn active" data-mode="place">➕ Colocar</button>
+      <button class="mode-btn" data-mode="wall">🧱 Trazar muro/local</button>
+      <button class="mode-btn" data-mode="aisle">↔️ Pasillo</button>
+      <button class="mode-btn" data-mode="select">🖱️ Seleccionar/mover</button>
+      <div class="sep"></div>
+      <button class="btn" id="rotLeftBtn" title="Girar -15°">⟲ 15°</button>
+      <button class="btn" id="rotRightBtn" title="Girar +15°">⟳ 15°</button>
+      <div class="sep"></div>
+      <button class="btn" id="undoBtn">↩️ Deshacer</button>
+      <button class="btn danger" id="clearBtn">🗑️ Limpiar todo</button>
+      <div class="sep"></div>
+      <span class="status-pill" id="modeHint">Elige un artículo del catálogo y haz clic en el plano</span>
+    </div>
+    <canvas id="stage" width="900" height="620"></canvas>
+    <div class="hint">Rueda: zoom · Shift/clic derecho + arrastrar: desplazar el lienzo · "Trazar muro": clic agrega puntos, doble-clic cierra el contorno · Con un elemento seleccionado usa ⟲/⟳ para girarlo.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Elemento seleccionado</h2>
+    <div class="body" id="selectionBody">
+      <div class="empty">Nada seleccionado. Coloca o haz clic en un elemento.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="layout" style="grid-template-columns: 1fr;">
+  <div class="panel">
+    <h2>Calculadora de costos del proyecto</h2>
+    <div class="body">
+      <div class="row2">
+        <div class="field">
+          <label>Costo de obra / m² de construcción (MXN)</label>
+          <input type="number" id="costM2" value="8500" step="100">
+        </div>
+        <div class="field">
+          <label>Contingencia (%)</label>
+          <input type="number" id="contingencia" value="10" step="1">
+        </div>
+      </div>
+      <div id="itemList" class="item-list"></div>
+      <div class="summary-row"><span>Obra / construcción (área × costo/m²)</span><b id="sumObra">$0</b></div>
+      <div class="summary-row"><span>Mobiliario</span><b id="sumMob">$0</b></div>
+      <div class="summary-row"><span>Racks / exhibidores</span><b id="sumRack">$0</b></div>
+      <div class="summary-row"><span>Módulos de servicio</span><b id="sumServ">$0</b></div>
+      <div class="summary-row"><span>Subtotal</span><b id="sumSub">$0</b></div>
+      <div class="summary-row"><span>Contingencia</span><b id="sumCont">$0</b></div>
+      <div class="total"><span>Total estimado</span><b id="sumTotal">$0</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3D modal -->
+<div id="render3dModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Render 3D del local — arrastra para orbitar, rueda para zoom</h3>
+      <button class="btn" id="close3dBtn">Cerrar ✕</button>
+    </div>
+    <div id="three-container"><div class="render-hint">Arrastra con el mouse para girar la cámara</div></div>
+  </div>
+</div>
+
+<!-- Projects modal -->
+<div id="projectsModal" class="modal-overlay">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <h3>📁 Mis proyectos guardados</h3>
+      <div style="display:flex; gap:8px;">
+        <button class="btn primary" id="newProjectBtn">＋ Nuevo proyecto</button>
+        <button class="btn" id="closeProjectsBtn">Cerrar ✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="proj-grid" id="projGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Deploy info modal -->
+<div id="deployModal" class="modal-overlay">
+  <div class="modal-box small">
+    <div class="modal-head">
+      <h3>☁️ Publicar en un subdominio</h3>
+      <button class="btn" id="closeDeployBtn">Cerrar ✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px; margin-top:0;">La app ya intenta guardar los proyectos en <code>/api/projects</code> (Cloudflare Pages Functions + D1). Si esa API no responde — como aquí en la vista previa — usa <code>localStorage</code> como respaldo automático, así que puedes seguir probando sin problema.</p>
+      <div class="deploy-box">
+        <b>Estructura de archivos para tu repo en GitHub</b><br>
+        <code>/index.html</code> (este archivo)<br>
+        <code>/functions/api/projects/index.js</code> (listar + crear)<br>
+        <code>/functions/api/projects/[id].js</code> (leer, actualizar, borrar)<br>
+        <code>/schema.sql</code> (estructura de la tabla D1)
+      </div>
+      <div class="deploy-box">
+        <b>Pasos en Cloudflare</b><br>
+        1. Crea la base: <code>wrangler d1 create parametrizador-db</code> (o desde el dashboard, Workers &amp; Pages → D1).<br>
+        2. Corre el esquema: <code>wrangler d1 execute parametrizador-db --remote --file=./schema.sql</code>.<br>
+        3. Conecta el repo de GitHub como proyecto de Pages (build command vacío, output <code>/</code>).<br>
+        4. En el proyecto de Pages → Settings → Functions → D1 database bindings: variable <code>DB</code> → tu base <code>parametrizador-db</code>.<br>
+        5. Agrega el dominio personalizado, ej. <code>parametrizador.gusgomez.design</code>.
+      </div>
+      <button class="btn primary" id="downloadHtmlBtn" style="width:100%; justify-content:center; margin-top:6px;">⬇️ Descargar index.html</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------------- Theme ---------------- */
+const themeBtn = document.getElementById('themeBtn');
+themeBtn.addEventListener('click', ()=>{
+  const cur = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', cur==='dark' ? 'light' : 'dark');
+});
+
+/* ---------------- Catalog data (shape = simplified 3D form) ---------------- */
+const CATALOG = {
+  mobiliario: {
+    label: "Mobiliario",
+    items: [
+      {key:"mostrador", name:"Mostrador / caja", w:1.5, d:0.7, h:1.0, cost:8500, color:"#8b5e3c", shape:"counter"},
+      {key:"vitrina", name:"Vitrina exhibidora", w:1.2, d:0.6, h:1.2, cost:9200, color:"#6d8ba8", shape:"fridge"},
+      {key:"refrigerador", name:"Refrigerador vertical", w:0.9, d:0.8, h:2.0, cost:22000, color:"#4f9dd1", shape:"fridge"},
+      {key:"congelador", name:"Congelador horizontal", w:1.8, d:0.9, h:0.95, cost:26000, color:"#3a7ab5", shape:"chest"},
+      {key:"mesa_espera", name:"Mesa / área de espera", w:1.0, d:1.0, h:0.75, cost:3200, color:"#b08968", shape:"table"},
+      {key:"silla", name:"Silla", w:0.5, d:0.5, h:0.9, cost:650, color:"#a67c52", shape:"chair"},
+      {key:"bano", name:"Sanitario", w:1.3, d:1.3, h:2.2, cost:15000, color:"#c9c9c9", shape:"plain"},
+      {key:"bodega", name:"Módulo de bodega/almacén", w:2.0, d:1.5, h:2.4, cost:12000, color:"#9b9b9b", shape:"crate"},
+    ]
+  },
+  racks: {
+    label: "Racks / Exhibición",
+    items: [
+      {key:"rack_abarrotes", name:"Rack de abarrotes", w:1.2, d:0.5, h:1.8, cost:4800, color:"#e0a458", shape:"rack"},
+      {key:"rack_bebidas", name:"Rack de bebidas", w:1.2, d:0.5, h:1.8, cost:4800, color:"#5aa9e6", shape:"rack"},
+      {key:"rack_botanas", name:"Rack de botanas/snacks", w:1.2, d:0.5, h:1.8, cost:4600, color:"#e6c15a", shape:"rack"},
+      {key:"rack_farmacia", name:"Rack de farmacia", w:1.0, d:0.45, h:1.8, cost:6200, color:"#7fc8a9", shape:"rack"},
+      {key:"rack_aseo", name:"Rack de aseo / limpieza", w:1.2, d:0.5, h:1.8, cost:4600, color:"#a3e1d4", shape:"rack"},
+      {key:"rack_comida_prep", name:"Isla de comida preparada", w:1.5, d:0.9, h:1.1, cost:14500, color:"#e07a5f", shape:"island"},
+      {key:"gondola_isla", name:"Góndola isla central", w:1.8, d:0.8, h:1.5, cost:9800, color:"#e0a458", shape:"island"},
+      {key:"canasta_promo", name:"Canasta / exhibidor de piso", w:0.6, d:0.6, h:0.9, cost:1800, color:"#d9bf77", shape:"basket"},
+    ]
+  },
+  servicios: {
+    label: "Servicios",
+    items: [
+      {key:"cajero", name:"Cajero automático", w:0.8, d:0.7, h:1.6, cost:0, color:"#5b5b5b", shape:"kiosk", nota:"Comodato bancario"},
+      {key:"pago_servicios", name:"Módulo de pago de servicios", w:1.0, d:0.7, h:1.1, cost:3200, color:"#7b7fd6", shape:"kiosk"},
+      {key:"recarga", name:"Módulo de recargas/telefonía", w:0.8, d:0.6, h:1.1, cost:2400, color:"#9d7fd6", shape:"kiosk"},
+      {key:"envios", name:"Punto de paquetería", w:1.2, d:0.8, h:1.1, cost:3600, color:"#d67f9d", shape:"counter"},
+      {key:"cafe", name:"Estación de café / self-service", w:1.0, d:0.6, h:1.2, cost:11000, color:"#8b5e3c", shape:"counter"},
+    ]
+  },
+};
+
+let currentTab = "mobiliario";
+let selectedCatalogKey = null;
+
+const tabsEl = document.getElementById('tabs');
+const listEl = document.getElementById('catalogList');
+
+function renderTabs(){
+  tabsEl.innerHTML = "";
+  Object.keys(CATALOG).forEach(k=>{
+    const d = document.createElement('div');
+    d.className = 'tab' + (k===currentTab ? ' active':'');
+    d.textContent = CATALOG[k].label;
+    d.onclick = ()=>{ currentTab=k; selectedCatalogKey=null; renderTabs(); renderCatalogList(); };
+    tabsEl.appendChild(d);
+  });
+}
+function renderCatalogList(){
+  listEl.innerHTML = "";
+  CATALOG[currentTab].items.forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'cat-item' + (selectedCatalogKey===it.key ? ' selected':'');
+    row.innerHTML = `<div class="swatch" style="background:${it.color}"></div>
+      <div class="meta"><b>${it.name}</b><small>${it.w}×${it.d} m · ${it.h}m alto · $${it.cost.toLocaleString('es-MX')}</small></div>`;
+    row.onclick = ()=>{ selectedCatalogKey = it.key; setMode('place'); renderCatalogList(); document.getElementById('modeHint').textContent = `Haz clic en el plano para colocar: ${it.name}`; };
+    listEl.appendChild(row);
+  });
+}
+renderTabs(); renderCatalogList();
+
+function findCatalogItem(key){
+  for(const cat of Object.values(CATALOG)){
+    const found = cat.items.find(i=>i.key===key);
+    if(found) return found;
+  }
+  return null;
+}
+
+/* ---------------- State ---------------- */
+let scenePlaced = [];      // {id, catKey, x,y (meters, center), rot (deg)}
+let wallPolygon = [];       // array of {x,y} meters; wallPolygon.closed = true when closed
+let aisles = [];            // {id, x,y,w,d} meters
+let planImage = null;       // {img, width, height, scaleM, dataURL}
+let history = [];
+let uidCounter = 1;
+let currentProjectId = null;
+let currentProjectName = null;
+
+function pushHistory(){
+  history.push(JSON.stringify({scenePlaced, wallPolygon, aisles}));
+  if(history.length>50) history.shift();
+}
+function undo(){
+  if(history.length===0) return;
+  const st = JSON.parse(history.pop());
+  scenePlaced = st.scenePlaced; wallPolygon = st.wallPolygon; aisles = st.aisles;
+  selection = null;
+  draw(); updateCostPanel(); updateSelectionPanel();
+}
+
+/* ---------------- Canvas / view transform ---------------- */
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+let pxPerMeter = 40;
+let offsetX = 60, offsetY = 60;
+let selection = null;
+let mode = 'place';
+let drawingWallPts = [];
+let aisleStart = null;
+let dragTarget = null;
+let dragOffset = {x:0,y:0};
+let isPanning = false; let panStart=null;
+
+function resizeCanvasToContainer(){
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth;
+  canvas.width = w;
+  canvas.height = Math.max(420, Math.round(w*0.62));
+  draw();
+}
+window.addEventListener('resize', resizeCanvasToContainer);
+
+function m2px(mx,my){ return { x: offsetX + mx*pxPerMeter, y: offsetY + my*pxPerMeter }; }
+function px2m(px,py){ return { x: (px-offsetX)/pxPerMeter, y: (py-offsetY)/pxPerMeter }; }
+
+function setMode(newMode){
+  mode = newMode;
+  document.querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===newMode));
+  drawingWallPts = []; aisleStart = null;
+  const hint = document.getElementById('modeHint');
+  if(newMode==='place') hint.textContent = selectedCatalogKey ? `Haz clic para colocar el artículo seleccionado` : 'Elige un artículo del catálogo y haz clic en el plano';
+  if(newMode==='wall') hint.textContent = 'Clic para agregar puntos del contorno del local. Doble clic para cerrar.';
+  if(newMode==='aisle') hint.textContent = 'Clic y arrastra para trazar un pasillo (rectángulo).';
+  if(newMode==='select') hint.textContent = 'Haz clic en un elemento para seleccionarlo, arrastra para moverlo, o usa ⟲/⟳ para girarlo.';
+  draw();
+}
+document.querySelectorAll('.mode-btn').forEach(b=> b.addEventListener('click', ()=> setMode(b.dataset.mode)));
+
+/* ---------------- Rotation ---------------- */
+function rotateSelected(deltaDeg){
+  if(!selection || selection.kind!=='item') return;
+  const it = scenePlaced.find(x=>x.id===selection.id);
+  if(!it) return;
+  pushHistory();
+  it.rot = ((it.rot||0) + deltaDeg + 360) % 360;
+  draw(); updateSelectionPanel();
+}
+document.getElementById('rotLeftBtn').addEventListener('click', ()=> rotateSelected(-15));
+document.getElementById('rotRightBtn').addEventListener('click', ()=> rotateSelected(15));
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='[') rotateSelected(-15);
+  if(e.key===']') rotateSelected(15);
+});
+
+/* ---------------- Drawing ---------------- */
+function draw(){
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const styles = getComputedStyle(document.documentElement);
+  ctx.fillStyle = styles.getPropertyValue('--canvas-bg').trim() || '#fbfbfc';
+  ctx.fillRect(0,0,w,h);
+
+  const cell = parseFloat(document.getElementById('cellSize').value) || 1;
+  ctx.strokeStyle = styles.getPropertyValue('--grid').trim() || '#e6e8ec';
+  ctx.lineWidth = 1;
+  const stepPx = cell*pxPerMeter;
+  for(let x = offsetX % stepPx; x < w; x += stepPx){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for(let y = offsetY % stepPx; y < h; y += stepPx){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+  if(planImage){
+    const op = document.getElementById('planOpacity').value/100;
+    ctx.save();
+    ctx.globalAlpha = op;
+    const iw = planImage.width * (planImage.scaleM||1) * pxPerMeter;
+    const ih = planImage.height * (planImage.scaleM||1) * pxPerMeter;
+    ctx.drawImage(planImage.img, offsetX, offsetY, iw, ih);
+    ctx.restore();
+  }
+
+  if(wallPolygon.length>1){
+    ctx.beginPath();
+    wallPolygon.forEach((p,i)=>{ const s=m2px(p.x,p.y); i===0?ctx.moveTo(s.x,s.y):ctx.lineTo(s.x,s.y); });
+    if(wallPolygon.closed) ctx.closePath();
+    ctx.strokeStyle = '#e07a5f'; ctx.lineWidth=3; ctx.stroke();
+    if(wallPolygon.closed){ ctx.fillStyle='rgba(224,122,95,0.06)'; ctx.fill(); }
+    wallPolygon.forEach(p=>{ const s=m2px(p.x,p.y); ctx.beginPath(); ctx.arc(s.x,s.y,4,0,7); ctx.fillStyle='#e07a5f'; ctx.fill(); });
+  }
+  if(drawingWallPts.length>0 && mode==='wall'){
+    ctx.beginPath();
+    drawingWallPts.forEach((p,i)=>{ const s=m2px(p.x,p.y); i===0?ctx.moveTo(s.x,s.y):ctx.lineTo(s.x,s.y); });
+    ctx.strokeStyle='#e07a5f'; ctx.setLineDash([5,4]); ctx.lineWidth=2; ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  aisles.forEach(a=>{
+    const s = m2px(a.x, a.y);
+    ctx.fillStyle = selection && selection.kind==='aisle' && selection.id===a.id ? 'rgba(37,99,235,0.28)' : 'rgba(150,150,160,0.22)';
+    ctx.strokeStyle = 'rgba(120,120,130,0.6)'; ctx.lineWidth=1.5;
+    ctx.fillRect(s.x, s.y, a.w*pxPerMeter, a.d*pxPerMeter);
+    ctx.strokeRect(s.x, s.y, a.w*pxPerMeter, a.d*pxPerMeter);
+    ctx.fillStyle = '#8a8a8a'; ctx.font='11px sans-serif';
+    ctx.fillText('Pasillo', s.x+4, s.y+13);
+  });
+
+  scenePlaced.forEach(it=>{
+    const cat = findCatalogItem(it.catKey);
+    if(!cat) return;
+    const center = m2px(it.x, it.y);
+    const wpx = cat.w*pxPerMeter, dpx = cat.d*pxPerMeter;
+    const rad = ((it.rot||0) * Math.PI)/180;
+    ctx.save();
+    ctx.translate(center.x, center.y);
+    ctx.rotate(rad);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = cat.color;
+    ctx.fillRect(-wpx/2, -dpx/2, wpx, dpx);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = (selection && selection.kind==='item' && selection.id===it.id) ? '#2563eb' : 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = (selection && selection.kind==='item' && selection.id===it.id) ? 3 : 1;
+    ctx.strokeRect(-wpx/2, -dpx/2, wpx, dpx);
+    // shape hints in top view
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+    if(cat.shape==='rack' || cat.shape==='island'){
+      for(let i=1;i<=2;i++){ const yy = -dpx/2 + (dpx/3)*i; ctx.beginPath(); ctx.moveTo(-wpx/2+3,yy); ctx.lineTo(wpx/2-3,yy); ctx.stroke(); }
+    } else if(cat.shape==='table' || cat.shape==='basket'){
+      ctx.beginPath(); ctx.ellipse(0,0, wpx/2-3, dpx/2-3, 0,0,7); ctx.stroke();
+    } else if(cat.shape==='chair'){
+      ctx.strokeRect(-wpx/2+3,-dpx/2+3, wpx-6, dpx*0.35);
+    }
+    if(wpx>40){
+      ctx.rotate(0);
+      ctx.fillStyle = '#fff'; ctx.font='11px sans-serif';
+      ctx.save(); ctx.rotate(-rad<0?0:0);
+      ctx.restore();
+      ctx.fillText(cat.name, -wpx/2+4, -dpx/2+13);
+    }
+    ctx.restore();
+  });
+
+  const area = computeArea();
+  document.getElementById('areaPill').textContent = `Área: ${area.toFixed(1)} m²`;
+}
+
+function computeArea(){
+  if(!wallPolygon.closed || wallPolygon.length<3) return 0;
+  let a = 0;
+  const pts = wallPolygon;
+  for(let i=0;i<pts.length;i++){
+    const p1=pts[i], p2=pts[(i+1)%pts.length];
+    a += p1.x*p2.y - p2.x*p1.y;
+  }
+  return Math.abs(a/2);
+}
+
+/* fit view to bounding box of content — used before exporting a clean 2D snapshot */
+function computeBounds(){
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  const consider=(x,y)=>{minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);};
+  if(wallPolygon.closed) wallPolygon.forEach(p=>consider(p.x,p.y));
+  scenePlaced.forEach(it=>{ const c=findCatalogItem(it.catKey); if(c){ consider(it.x-c.w,it.y-c.d); consider(it.x+c.w,it.y+c.d);} });
+  aisles.forEach(a=>{ consider(a.x,a.y); consider(a.x+a.w,a.y+a.d); });
+  if(!isFinite(minX)){ minX=0;maxX=12;minY=0;maxY=8; }
+  return {minX,maxX,minY,maxY};
+}
+function fitView(){
+  const b = computeBounds();
+  const spanX = Math.max(2,b.maxX-b.minX), spanY = Math.max(2,b.maxY-b.minY);
+  const margin = 40;
+  const scaleX = (canvas.width-margin*2)/spanX, scaleY=(canvas.height-margin*2)/spanY;
+  pxPerMeter = Math.max(8, Math.min(140, Math.min(scaleX,scaleY)));
+  offsetX = margin - b.minX*pxPerMeter + (canvas.width-margin*2 - spanX*pxPerMeter)/2;
+  offsetY = margin - b.minY*pxPerMeter + (canvas.height-margin*2 - spanY*pxPerMeter)/2;
+}
+
+/* ---------------- Interaction ---------------- */
+function getMouseM(evt){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width/rect.width, scaleY = canvas.height/rect.height;
+  const px = (evt.clientX-rect.left)*scaleX, py=(evt.clientY-rect.top)*scaleY;
+  return { ...px2m(px,py), px, py };
+}
+
+function hitTestItem(mx,my){
+  for(let i=scenePlaced.length-1;i>=0;i--){
+    const it = scenePlaced[i];
+    const cat = findCatalogItem(it.catKey);
+    if(!cat) continue;
+    const dx = mx-it.x, dy = my-it.y;
+    const rad = ((it.rot||0)*Math.PI)/180;
+    const lx = dx*Math.cos(rad) + dy*Math.sin(rad);
+    const ly = -dx*Math.sin(rad) + dy*Math.cos(rad);
+    if(Math.abs(lx) <= cat.w/2 && Math.abs(ly) <= cat.d/2) return it;
+  }
+  return null;
+}
+function hitTestAisle(mx,my){
+  for(let i=aisles.length-1;i>=0;i--){
+    const a = aisles[i];
+    if(mx>=a.x && mx<=a.x+a.w && my>=a.y && my<=a.y+a.d) return a;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown', (e)=>{
+  const m = getMouseM(e);
+  if(e.button===2 || e.shiftKey){ isPanning = true; panStart = {x:e.clientX, y:e.clientY, ox:offsetX, oy:offsetY}; return; }
+
+  if(mode==='place'){
+    if(!selectedCatalogKey){ return; }
+    pushHistory();
+    scenePlaced.push({ id: uidCounter++, catKey: selectedCatalogKey, x: snap(m.x), y: snap(m.y), rot:0 });
+    draw(); updateCostPanel();
+  } else if(mode==='wall'){
+    drawingWallPts.push({x: snap(m.x), y: snap(m.y)});
+    draw();
+  } else if(mode==='aisle'){
+    aisleStart = {x: snap(m.x), y: snap(m.y)};
+  } else if(mode==='select'){
+    const it = hitTestItem(m.x, m.y);
+    if(it){
+      selection = {kind:'item', id: it.id};
+      dragTarget = it; dragOffset = {x: m.x - it.x, y: m.y - it.y};
+    } else {
+      const a = hitTestAisle(m.x, m.y);
+      if(a){ selection = {kind:'aisle', id:a.id}; dragTarget=a; dragOffset={x:m.x-a.x, y:m.y-a.y}; }
+      else { selection = null; }
+    }
+    draw(); updateSelectionPanel();
+  }
+});
+
+canvas.addEventListener('dblclick', ()=>{
+  if(mode==='wall' && drawingWallPts.length>=3){
+    pushHistory();
+    wallPolygon = drawingWallPts.slice();
+    wallPolygon.closed = true;
+    drawingWallPts = [];
+    draw(); updateCostPanel();
+  }
+});
+
+canvas.addEventListener('mousemove', (e)=>{
+  if(isPanning && panStart){
+    offsetX = panStart.ox + (e.clientX-panStart.x);
+    offsetY = panStart.oy + (e.clientY-panStart.y);
+    draw(); return;
+  }
+  if(mode==='select' && dragTarget){
+    const m = getMouseM(e);
+    dragTarget.x = snap(m.x - dragOffset.x);
+    dragTarget.y = snap(m.y - dragOffset.y);
+    draw();
+  }
+  if(mode==='aisle' && aisleStart){
+    const m = getMouseM(e);
+    draw();
+    const s1 = m2px(aisleStart.x, aisleStart.y);
+    const s2 = m2px(snap(m.x), snap(m.y));
+    ctx.strokeStyle = '#2563eb'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.strokeRect(Math.min(s1.x,s2.x), Math.min(s1.y,s2.y), Math.abs(s2.x-s1.x), Math.abs(s2.y-s1.y));
+    ctx.setLineDash([]);
+  }
+});
+
+window.addEventListener('mouseup', (e)=>{
+  isPanning = false; panStart = null;
+  if(mode==='select' && dragTarget){ pushHistory(); dragTarget=null; updateCostPanel(); }
+  if(mode==='aisle' && aisleStart){
+    const m = getMouseM(e);
+    const x1=aisleStart.x, y1=aisleStart.y, x2=snap(m.x), y2=snap(m.y);
+    const w = Math.abs(x2-x1), d = Math.abs(y2-y1);
+    if(w>0.2 && d>0.2){
+      pushHistory();
+      aisles.push({id: uidCounter++, x:Math.min(x1,x2), y:Math.min(y1,y2), w, d});
+      updateCostPanel();
+    }
+    aisleStart = null; draw();
+  }
+});
+
+canvas.addEventListener('contextmenu', e=> e.preventDefault());
+
+canvas.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const m = getMouseM(e);
+  const before = px2m(m.px, m.py);
+  const factor = e.deltaY < 0 ? 1.08 : 1/1.08;
+  pxPerMeter = Math.min(160, Math.max(10, pxPerMeter*factor));
+  const afterPx = m2px(before.x, before.y);
+  offsetX += m.px - afterPx.x;
+  offsetY += m.py - afterPx.y;
+  draw();
+}, {passive:false});
+
+function snap(v){
+  const cell = parseFloat(document.getElementById('cellSize').value) || 1;
+  const g = cell/4;
+  return Math.round(v/g)*g;
+}
+
+document.getElementById('cellSize').addEventListener('input', draw);
+document.getElementById('planOpacity').addEventListener('input', draw);
+
+document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  if(!confirm('¿Borrar todo el plano (mobiliario, muros y pasillos)?')) return;
+  pushHistory();
+  scenePlaced = []; wallPolygon = []; aisles = []; selection = null;
+  draw(); updateCostPanel(); updateSelectionPanel();
+});
+
+/* ---------------- Upload reference plan ---------------- */
+document.getElementById('uploadPlanBtn').addEventListener('click', ()=> document.getElementById('planInput').click());
+document.getElementById('planInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      planImage = { img, width: img.width, height: img.height, scaleM: 0.02, dataURL: ev.target.result };
+      draw();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ---------------- Selection panel ---------------- */
+function updateSelectionPanel(){
+  const body = document.getElementById('selectionBody');
+  if(!selection){ body.innerHTML = '<div class="empty">Nada seleccionado. Coloca o haz clic en un elemento.</div>'; return; }
+  if(selection.kind==='item'){
+    const it = scenePlaced.find(x=>x.id===selection.id);
+    if(!it){ body.innerHTML = '<div class="empty">Elemento eliminado.</div>'; return; }
+    const cat = findCatalogItem(it.catKey);
+    body.innerHTML = `
+      <div class="field"><label>Elemento</label><input value="${cat.name}" disabled></div>
+      <div class="row2">
+        <div class="field"><label>Posición X (m)</label><input type="number" id="selX" value="${it.x.toFixed(2)}" step="0.1"></div>
+        <div class="field"><label>Posición Y (m)</label><input type="number" id="selY" value="${it.y.toFixed(2)}" step="0.1"></div>
+      </div>
+      <div class="field"><label>Rotación</label>
+        <div class="rot-controls">
+          <button id="selRotMinus">⟲</button>
+          <input type="number" id="selRot" value="${it.rot||0}" step="15" min="0" max="359">
+          <button id="selRotPlus">⟳</button>
+        </div>
+      </div>
+      <div class="field"><label>Costo unitario</label><input value="$${cat.cost.toLocaleString('es-MX')}" disabled></div>
+      <button class="btn danger" id="deleteSelBtn" style="width:100%; justify-content:center;">🗑️ Eliminar elemento</button>
+    `;
+    document.getElementById('selX').addEventListener('change', (e)=>{ it.x=parseFloat(e.target.value)||it.x; draw(); });
+    document.getElementById('selY').addEventListener('change', (e)=>{ it.y=parseFloat(e.target.value)||it.y; draw(); });
+    document.getElementById('selRot').addEventListener('change', (e)=>{ it.rot=((parseFloat(e.target.value)||0)%360+360)%360; draw(); });
+    document.getElementById('selRotMinus').addEventListener('click', ()=> rotateSelected(-15));
+    document.getElementById('selRotPlus').addEventListener('click', ()=> rotateSelected(15));
+    document.getElementById('deleteSelBtn').addEventListener('click', ()=>{
+      pushHistory();
+      scenePlaced = scenePlaced.filter(x=>x.id!==it.id);
+      selection = null; draw(); updateCostPanel(); updateSelectionPanel();
+    });
+  } else if(selection.kind==='aisle'){
+    const a = aisles.find(x=>x.id===selection.id);
+    if(!a) return;
+    body.innerHTML = `
+      <div class="field"><label>Pasillo</label><input value="Ancho ${a.w.toFixed(2)}m × Fondo ${a.d.toFixed(2)}m" disabled></div>
+      <button class="btn danger" id="deleteAisleBtn" style="width:100%; justify-content:center;">🗑️ Eliminar pasillo</button>
+    `;
+    document.getElementById('deleteAisleBtn').addEventListener('click', ()=>{
+      pushHistory();
+      aisles = aisles.filter(x=>x.id!==a.id);
+      selection = null; draw(); updateCostPanel(); updateSelectionPanel();
+    });
+  }
+}
+
+/* ---------------- Cost calculator ---------------- */
+function fmt(n){ return '$' + Math.round(n).toLocaleString('es-MX'); }
+
+function computeCosts(){
+  let sumMob=0, sumRack=0, sumServ=0;
+  scenePlaced.forEach(it=>{
+    const cat = findCatalogItem(it.catKey);
+    if(!cat) return;
+    if(CATALOG.mobiliario.items.includes(cat)) sumMob += cat.cost;
+    else if(CATALOG.racks.items.includes(cat)) sumRack += cat.cost;
+    else if(CATALOG.servicios.items.includes(cat)) sumServ += cat.cost;
+  });
+  const area = computeArea();
+  const costM2 = parseFloat(document.getElementById('costM2').value) || 0;
+  const cont = parseFloat(document.getElementById('contingencia').value) || 0;
+  const sumObra = area * costM2;
+  const subtotal = sumObra + sumMob + sumRack + sumServ;
+  const contMonto = subtotal * (cont/100);
+  const total = subtotal + contMonto;
+  return {area, sumObra, sumMob, sumRack, sumServ, subtotal, contMonto, total, cont, costM2};
+}
+
+function updateCostPanel(){
+  const listEl = document.getElementById('itemList');
+  listEl.innerHTML = "";
+  if(scenePlaced.length===0){
+    listEl.innerHTML = '<div class="empty">Aún no colocas elementos.</div>';
+  }
+  scenePlaced.forEach(it=>{
+    const cat = findCatalogItem(it.catKey);
+    if(!cat) return;
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `<div class="dot" style="background:${cat.color}"></div><div class="name">${cat.name}</div><div>${fmt(cat.cost)}</div><button title="Eliminar">✕</button>`;
+    row.querySelector('button').onclick = ()=>{
+      pushHistory();
+      scenePlaced = scenePlaced.filter(x=>x.id!==it.id);
+      if(selection && selection.kind==='item' && selection.id===it.id) selection=null;
+      draw(); updateCostPanel(); updateSelectionPanel();
+    };
+    listEl.appendChild(row);
+  });
+
+  const c = computeCosts();
+  document.getElementById('sumObra').textContent = fmt(c.sumObra);
+  document.getElementById('sumMob').textContent = fmt(c.sumMob);
+  document.getElementById('sumRack').textContent = fmt(c.sumRack);
+  document.getElementById('sumServ').textContent = fmt(c.sumServ);
+  document.getElementById('sumSub').textContent = fmt(c.subtotal);
+  document.getElementById('sumCont').textContent = fmt(c.contMonto);
+  document.getElementById('sumTotal').textContent = fmt(c.total);
+}
+document.getElementById('costM2').addEventListener('input', updateCostPanel);
+document.getElementById('contingencia').addEventListener('input', updateCostPanel);
+
+/* ==================================================================
+   3D SCENE (shared builder used by the interactive modal AND by the
+   static PDF-capture step)
+   ================================================================== */
+function buildItemMesh(cat){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({color:cat.color, roughness:0.6});
+  const darkMat = new THREE.MeshStandardMaterial({color:0x232323, roughness:0.5});
+  const glassMat = new THREE.MeshStandardMaterial({color:cat.color, roughness:0.1, metalness:0.05, transparent:true, opacity:0.5});
+  const w=cat.w, d=cat.d, h=cat.h;
+
+  switch(cat.shape){
+    case 'rack': {
+      const sideGeo = new THREE.BoxGeometry(0.04, h, d);
+      const left = new THREE.Mesh(sideGeo, mat); left.position.set(-w/2+0.02, h/2, 0); g.add(left);
+      const right = new THREE.Mesh(sideGeo, mat); right.position.set(w/2-0.02, h/2, 0); g.add(right);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.03), mat); back.position.set(0,h/2,-d/2+0.015); g.add(back);
+      const shelves = 4;
+      for(let i=1;i<=shelves;i++){
+        const y = (h/(shelves+1))*i;
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(w-0.06, 0.03, d-0.04), darkMat);
+        shelf.position.set(0, y, 0);
+        g.add(shelf);
+      }
+      break;
+    }
+    case 'island': {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(w, h*0.4, d), mat);
+      base.position.set(0, h*0.2, 0); g.add(base);
+      const shelves = 2;
+      for(let i=1;i<=shelves;i++){
+        const y = h*0.4 + (h*0.55/shelves)*i;
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(w-0.05, 0.03, d-0.05), darkMat);
+        shelf.position.set(0,y,0); g.add(shelf);
+      }
+      break;
+    }
+    case 'fridge': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); body.position.set(0,h/2,0); g.add(body);
+      const glassDoor = new THREE.Mesh(new THREE.BoxGeometry(w-0.06,h-0.1,0.02), glassMat);
+      glassDoor.position.set(0,h/2, d/2+0.005); g.add(glassDoor);
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03,h*0.5,0.03), darkMat);
+      handle.position.set(w/2-0.08, h/2, d/2+0.03); g.add(handle);
+      break;
+    }
+    case 'chest': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); body.position.set(0,h/2,0); g.add(body);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(w-0.04,0.04,d-0.04), glassMat);
+      lid.position.set(0,h+0.02,0); g.add(lid);
+      break;
+    }
+    case 'counter': {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(w, h*0.85, d), mat); base.position.set(0,h*0.425,0); g.add(base);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(w+0.06, h*0.06, d+0.06), darkMat);
+      top.position.set(0, h*0.85+h*0.03, 0); g.add(top);
+      break;
+    }
+    case 'table': {
+      const top = new THREE.Mesh(new THREE.BoxGeometry(w,0.05,d), mat); top.position.set(0,h-0.025,0); g.add(top);
+      const legR = 0.03;
+      const legH = Math.max(0.1,h-0.05);
+      const legGeo = new THREE.CylinderGeometry(legR,legR,legH,8);
+      [[-w/2+legR*1.5,-d/2+legR*1.5],[w/2-legR*1.5,-d/2+legR*1.5],[-w/2+legR*1.5,d/2-legR*1.5],[w/2-legR*1.5,d/2-legR*1.5]].forEach(([lx,lz])=>{
+        const leg = new THREE.Mesh(legGeo, darkMat); leg.position.set(lx,legH/2,lz); g.add(leg);
+      });
+      break;
+    }
+    case 'chair': {
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(w,0.05,d), mat); seat.position.set(0,h*0.55,0); g.add(seat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w,h*0.45,0.04), mat); back.position.set(0,h*0.55+h*0.225,-d/2+0.02); g.add(back);
+      const legGeo = new THREE.CylinderGeometry(0.02,0.02,h*0.55,6);
+      [[-w/2+0.04,-d/2+0.04],[w/2-0.04,-d/2+0.04],[-w/2+0.04,d/2-0.04],[w/2-0.04,d/2-0.04]].forEach(([lx,lz])=>{
+        const leg = new THREE.Mesh(legGeo, darkMat); leg.position.set(lx,h*0.275,lz); g.add(leg);
+      });
+      break;
+    }
+    case 'basket': {
+      const rTop = Math.min(w,d)/2*0.65, rBottom = Math.min(w,d)/2;
+      const geo = new THREE.CylinderGeometry(rTop, rBottom, h, 14);
+      const mesh = new THREE.Mesh(geo, mat); mesh.position.set(0,h/2,0); g.add(mesh);
+      break;
+    }
+    case 'kiosk': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); body.position.set(0,h/2,0); g.add(body);
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(w*0.6,h*0.35,0.02), new THREE.MeshStandardMaterial({color:0x1a1a2e, emissive:0x224477, emissiveIntensity:0.5}));
+      screen.position.set(0,h*0.6,d/2+0.011); g.add(screen);
+      break;
+    }
+    case 'crate': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); body.position.set(0,h/2,0); g.add(body);
+      const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d));
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color:0x000000, opacity:0.35, transparent:true}));
+      line.position.set(0,h/2,0); g.add(line);
+      break;
+    }
+    default: {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); body.position.set(0,h/2,0); g.add(body);
+      const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d));
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color:0x000000, opacity:0.25, transparent:true}));
+      line.position.set(0,h/2,0); g.add(line);
+    }
+  }
+  return g;
+}
+
+function buildScene(container, opts){
+  opts = opts || {};
+  const w = container.clientWidth || 900, h = container.clientHeight || 620;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x101114);
+
+  const camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+  renderer.setSize(w,h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  container.insertBefore(renderer.domElement, container.firstChild);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(8,14,6); scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(0xffffff, 0.35); dir2.position.set(-6,8,-6); scene.add(dir2);
+
+  const b = computeBounds();
+  const cx = (b.minX+b.maxX)/2, cy=(b.minY+b.maxY)/2;
+  const spanMax = Math.max(4, b.maxX-b.minX, b.maxY-b.minY);
+
+  const floorSize = spanMax*2.2;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(floorSize, floorSize), new THREE.MeshStandardMaterial({color:0x2a2d33, roughness:0.9}));
+  floor.rotation.x = -Math.PI/2; scene.add(floor);
+  scene.add(new THREE.GridHelper(floorSize, Math.round(floorSize), 0x3a3d44, 0x2c2f36));
+
+  function toScene(x,y){ return { x: x-cx, z: y-cy }; }
+
+  if(wallPolygon.closed && wallPolygon.length>=3){
+    const wallH = 2.8, wallT = 0.12;
+    const wallMat = new THREE.MeshStandardMaterial({color:0xd8d8dc, roughness:0.8});
+    for(let i=0;i<wallPolygon.length;i++){
+      const p1 = wallPolygon[i], p2 = wallPolygon[(i+1)%wallPolygon.length];
+      const s1 = toScene(p1.x,p1.y), s2 = toScene(p2.x,p2.y);
+      const dx = s2.x-s1.x, dz = s2.z-s1.z;
+      const len = Math.sqrt(dx*dx+dz*dz);
+      if(len<0.01) continue;
+      const geo = new THREE.BoxGeometry(len, wallH, wallT);
+      const mesh = new THREE.Mesh(geo, wallMat);
+      mesh.position.set((s1.x+s2.x)/2, wallH/2, (s1.z+s2.z)/2);
+      mesh.rotation.y = -Math.atan2(dz, dx);
+      scene.add(mesh);
+    }
+  }
+
+  aisles.forEach(a=>{
+    const s = toScene(a.x + a.w/2, a.y + a.d/2);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(a.w, a.d), new THREE.MeshStandardMaterial({color:0x4a4d55, roughness:1}));
+    mesh.rotation.x = -Math.PI/2;
+    mesh.position.set(s.x, 0.01, s.z);
+    scene.add(mesh);
+  });
+
+  scenePlaced.forEach(it=>{
+    const cat = findCatalogItem(it.catKey);
+    if(!cat) return;
+    const s = toScene(it.x, it.y);
+    const group = buildItemMesh(cat);
+    group.position.set(s.x, 0, s.z);
+    group.rotation.y = ((it.rot||0) * Math.PI)/180;
+    scene.add(group);
+  });
+
+  let radius = spanMax*1.9 + 4;
+  let theta = Math.PI/4, phi = Math.PI/3.2;
+  function updateCam(){
+    camera.position.set(
+      radius*Math.sin(phi)*Math.sin(theta),
+      radius*Math.cos(phi),
+      radius*Math.sin(phi)*Math.cos(theta)
+    );
+    camera.lookAt(0,1,0);
+  }
+  updateCam();
+
+  return { scene, camera, renderer, updateCam,
+    setAngles(t,p,r){ theta=t; phi=p; radius=r; updateCam(); },
+    getAngles(){ return {theta,phi,radius}; } };
+}
+
+/* ---------------- Interactive 3D modal ---------------- */
+const modal = document.getElementById('render3dModal');
+let three = null;
+
+document.getElementById('open3dBtn').addEventListener('click', ()=>{
+  modal.classList.add('open');
+  requestAnimationFrame(()=> init3D());
+});
+document.getElementById('close3dBtn').addEventListener('click', ()=>{
+  modal.classList.remove('open');
+  dispose3D();
+});
+
+function dispose3D(){
+  if(three && three.rafId) cancelAnimationFrame(three.rafId);
+  const container = document.getElementById('three-container');
+  container.querySelectorAll('canvas').forEach(c=>c.remove());
+  three = null;
+}
+
+function init3D(){
+  dispose3D();
+  const container = document.getElementById('three-container');
+  const built = buildScene(container);
+  const {scene, camera, renderer} = built;
+  let {theta,phi,radius} = built.getAngles();
+
+  let dragging=false, lastX=0,lastY=0;
+  const dom = renderer.domElement;
+  dom.style.cursor='grab';
+  dom.addEventListener('pointerdown', (e)=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; dom.style.cursor='grabbing'; });
+  window.addEventListener('pointerup', ()=>{ dragging=false; dom.style.cursor='grab'; });
+  window.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX-lastX, dy=e.clientY-lastY;
+    theta -= dx*0.008;
+    phi = Math.min(Math.PI/2-0.05, Math.max(0.15, phi - dy*0.008));
+    lastX=e.clientX; lastY=e.clientY;
+    built.setAngles(theta,phi,radius);
+  });
+  dom.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    radius = Math.max(2, radius * (e.deltaY<0?0.9:1.1));
+    built.setAngles(theta,phi,radius);
+  }, {passive:false});
+
+  function onResize(){
+    const w2 = container.clientWidth, h2 = container.clientHeight;
+    camera.aspect = w2/h2; camera.updateProjectionMatrix();
+    renderer.setSize(w2,h2);
+  }
+  window.addEventListener('resize', onResize);
+
+  function animate(){
+    three.rafId = requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+  three = {rafId:null};
+  animate();
+}
+
+/* ---------------- PDF export (2D snapshot + 3D snapshot + cost breakdown) ---------------- */
+document.getElementById('pdfBtn').addEventListener('click', generatePDF);
+
+function capture2D(){
+  const savedView = {pxPerMeter, offsetX, offsetY};
+  fitView();
+  draw();
+  const dataURL = canvas.toDataURL('image/png');
+  pxPerMeter = savedView.pxPerMeter; offsetX = savedView.offsetX; offsetY = savedView.offsetY;
+  draw();
+  return dataURL;
+}
+
+function capture3D(){
+  const hidden = document.createElement('div');
+  hidden.style.position='fixed'; hidden.style.left='-99999px'; hidden.style.top='0';
+  hidden.style.width='1000px'; hidden.style.height='680px';
+  document.body.appendChild(hidden);
+  const built = buildScene(hidden);
+  built.renderer.render(built.scene, built.camera);
+  const dataURL = built.renderer.domElement.toDataURL('image/png');
+  built.renderer.dispose();
+  document.body.removeChild(hidden);
+  return dataURL;
+}
+
+function generatePDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = margin;
+
+  const name = currentProjectName || 'Proyecto sin nombre';
+  const c = computeCosts();
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text('Parametrizador de Unidades de Venta Minorista', margin, y); y+=24;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90);
+  doc.text(`Proyecto: ${name}`, margin, y); y+=16;
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, margin, y); y+=16;
+  doc.text(`Área construida (según contorno trazado): ${c.area.toFixed(1)} m²`, margin, y); y+=22;
+
+  doc.setTextColor(20);
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('Desglose de costos', margin, y); y+=18;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11);
+  const rows = [
+    ['Obra / construcción', fmt(c.sumObra)],
+    ['Mobiliario', fmt(c.sumMob)],
+    ['Racks / exhibidores', fmt(c.sumRack)],
+    ['Módulos de servicio', fmt(c.sumServ)],
+    ['Subtotal', fmt(c.subtotal)],
+    [`Contingencia (${c.cont}%)`, fmt(c.contMonto)],
+  ];
+  rows.forEach(r=>{
+    doc.text(r[0], margin, y);
+    doc.text(r[1], pageW-margin, y, {align:'right'});
+    y+=16;
+  });
+  doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text('Total estimado', margin, y);
+  doc.text(fmt(c.total), pageW-margin, y, {align:'right'});
+  y+=26;
+
+  if(scenePlaced.length>0){
+    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('Elementos colocados', margin, y); y+=16;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    const counts = {};
+    scenePlaced.forEach(it=>{ const cat=findCatalogItem(it.catKey); if(!cat) return; counts[cat.name]=(counts[cat.name]||0)+1; });
+    Object.entries(counts).forEach(([nm,qty])=>{
+      if(y > 760){ doc.addPage(); y=margin; }
+      doc.text(`• ${nm} × ${qty}`, margin, y); y+=14;
+    });
+  }
+
+  // page 2: 2D plan
+  doc.addPage();
+  doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text('Vista de planta (2D)', margin, margin);
+  const img2d = capture2D();
+  const imgW = pageW - margin*2;
+  const imgH = imgW * (canvas.height/canvas.width);
+  doc.addImage(img2d, 'PNG', margin, margin+20, imgW, imgH);
+
+  // page 3: 3D render
+  doc.addPage();
+  doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text('Render 3D esquemático', margin, margin);
+  const img3d = capture3D();
+  const imgW3 = pageW - margin*2;
+  const imgH3 = imgW3 * (680/1000);
+  doc.addImage(img3d, 'PNG', margin, margin+20, imgW3, imgH3);
+
+  doc.save(`${name.replace(/[^a-z0-9-_]+/gi,'_')}-resumen.pdf`);
+}
+
+/* ---------------- Save / load projects ----------------
+   Primary storage: Cloudflare D1 via Pages Functions at /api/projects.
+   Fallback: localStorage, used automatically if the API isn't reachable
+   (e.g. while testing this file before it's deployed to Cloudflare Pages). */
+const STORAGE_KEY = 'retailParametrizerProjects_v1';
+let usingRemoteAPI = true; // flips to false the first time the API fails
+
+function localList(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e){ return []; } }
+function localSaveList(list){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); return true; }
+  catch(e){ alert('No se pudo guardar localmente: el almacenamiento del navegador está lleno o no disponible.'); return false; }
+}
+
+// GET /api/projects -> [{id,name,updatedAt,thumb}, ...]  (summaries only, no full state)
+async function apiListProjects(){
+  const res = await fetch('/api/projects');
+  if(!res.ok) throw new Error('api-list-failed');
+  return await res.json();
+}
+// GET /api/projects/:id -> {id,name,updatedAt,thumb,state}
+async function apiGetProject(id){
+  const res = await fetch('/api/projects/' + encodeURIComponent(id));
+  if(!res.ok) throw new Error('api-get-failed');
+  return await res.json();
+}
+// POST (create) or PUT (update) /api/projects
+async function apiSaveProject(payload, isUpdate){
+  const url = isUpdate ? '/api/projects/' + encodeURIComponent(payload.id) : '/api/projects';
+  const res = await fetch(url, {
+    method: isUpdate ? 'PUT' : 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('api-save-failed');
+  return await res.json();
+}
+async function apiDeleteProject(id){
+  const res = await fetch('/api/projects/' + encodeURIComponent(id), {method:'DELETE'});
+  if(!res.ok && res.status !== 204) throw new Error('api-delete-failed');
+}
+
+// High-level helpers used by the UI below — try the API first, fall back to localStorage.
+async function loadProjectSummaries(){
+  if(usingRemoteAPI){
+    try{ return await apiListProjects(); }
+    catch(e){ usingRemoteAPI = false; console.warn('API de proyectos no disponible, usando almacenamiento local del navegador.'); }
+  }
+  return localList().map(p=>({id:p.id, name:p.name, updatedAt:p.updatedAt, thumb:p.thumb}));
+}
+async function loadProjectFull(id){
+  if(usingRemoteAPI){
+    try{ return await apiGetProject(id); }
+    catch(e){ usingRemoteAPI = false; }
+  }
+  return localList().find(p=>p.id===id);
+}
+async function persistProject(payload, isUpdate){
+  if(usingRemoteAPI){
+    try{ return await apiSaveProject(payload, isUpdate); }
+    catch(e){ usingRemoteAPI = false; }
+  }
+  const list = localList();
+  const idx = list.findIndex(p=>p.id===payload.id);
+  if(idx>=0) list[idx]=payload; else list.push(payload);
+  localSaveList(list);
+  return payload;
+}
+async function removeProject(id){
+  if(usingRemoteAPI){
+    try{ await apiDeleteProject(id); return; }
+    catch(e){ usingRemoteAPI = false; }
+  }
+  localSaveList(localList().filter(p=>p.id!==id));
+}
+
+function serializeState(){
+  return {
+    scenePlaced, wallPolygon, aisles, uidCounter,
+    cellSize: document.getElementById('cellSize').value,
+    costM2: document.getElementById('costM2').value,
+    contingencia: document.getElementById('contingencia').value,
+    planImage: planImage ? {dataURL:planImage.dataURL, width:planImage.width, height:planImage.height, scaleM:planImage.scaleM} : null,
+  };
+}
+
+function applyState(state){
+  scenePlaced = state.scenePlaced || [];
+  wallPolygon = state.wallPolygon || [];
+  aisles = state.aisles || [];
+  uidCounter = state.uidCounter || (scenePlaced.length+aisles.length+10);
+  document.getElementById('cellSize').value = state.cellSize || 1;
+  document.getElementById('costM2').value = state.costM2 || 8500;
+  document.getElementById('contingencia').value = state.contingencia || 10;
+  selection = null;
+  if(state.planImage){
+    const img = new Image();
+    img.onload = ()=>{ planImage = {img, width:state.planImage.width, height:state.planImage.height, scaleM:state.planImage.scaleM, dataURL:state.planImage.dataURL}; draw(); };
+    img.src = state.planImage.dataURL;
+  } else {
+    planImage = null;
+  }
+  draw(); updateCostPanel(); updateSelectionPanel();
+}
+
+function makeThumbnail(){
+  const savedView = {pxPerMeter, offsetX, offsetY};
+  fitView(); draw();
+  const t = document.createElement('canvas'); t.width=320; t.height=200;
+  const tctx = t.getContext('2d');
+  tctx.drawImage(canvas, 0,0,t.width,t.height);
+  const dataURL = t.toDataURL('image/png');
+  pxPerMeter=savedView.pxPerMeter; offsetX=savedView.offsetX; offsetY=savedView.offsetY; draw();
+  return dataURL;
+}
+
+function updateHeader(){
+  document.getElementById('projSubtitle').textContent = currentProjectName
+    ? `Proyecto: ${currentProjectName} · ${usingRemoteAPI ? 'guardado en la base de datos' : 'guardado localmente en este navegador'}`
+    : 'Sin guardar aún · Diseña la planta, coloca mobiliario y estima costos';
+}
+
+document.getElementById('saveProjectBtn').addEventListener('click', async ()=>{
+  let name = currentProjectName;
+  if(!name){
+    name = prompt('Nombre del proyecto:', 'Nueva sucursal');
+    if(!name) return;
+  }
+  const btn = document.getElementById('saveProjectBtn');
+  const old = btn.innerHTML; btn.innerHTML='⏳ Guardando…'; btn.disabled = true;
+  const thumb = makeThumbnail();
+  const isUpdate = !!currentProjectId;
+  const payload = { id: currentProjectId || ('p_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)), name, updatedAt: Date.now(), thumb, state: serializeState() };
+  try{
+    const saved = await persistProject(payload, isUpdate);
+    currentProjectId = saved.id || payload.id; currentProjectName = saved.name || payload.name;
+    updateHeader();
+    btn.innerHTML = usingRemoteAPI ? '✅ Guardado en la nube' : '✅ Guardado (local)';
+  }catch(e){
+    btn.innerHTML = '⚠️ Error al guardar';
+  }
+  btn.disabled = false;
+  setTimeout(()=> btn.innerHTML = old, 1800);
+});
+
+/* ---------------- Projects management modal ---------------- */
+const projectsModal = document.getElementById('projectsModal');
+document.getElementById('projectsBtn').addEventListener('click', async ()=>{
+  projectsModal.classList.add('open');
+  await renderProjectsGrid();
+});
+document.getElementById('closeProjectsBtn').addEventListener('click', ()=> projectsModal.classList.remove('open'));
+document.getElementById('newProjectBtn').addEventListener('click', ()=>{
+  if(scenePlaced.length || wallPolygon.length){ if(!confirm('¿Empezar un proyecto nuevo? Se perderá lo no guardado.')) return; }
+  scenePlaced=[]; wallPolygon=[]; aisles=[]; planImage=null; selection=null;
+  currentProjectId=null; currentProjectName=null;
+  document.getElementById('cellSize').value=1; document.getElementById('costM2').value=8500; document.getElementById('contingencia').value=10;
+  updateHeader(); draw(); updateCostPanel(); updateSelectionPanel();
+  projectsModal.classList.remove('open');
+});
+
+async function renderProjectsGrid(){
+  const grid = document.getElementById('projGrid');
+  grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Cargando proyectos…</div>';
+  let list;
+  try{ list = (await loadProjectSummaries()).sort((a,b)=> b.updatedAt-a.updatedAt); }
+  catch(e){ list = []; }
+
+  if(list.length===0){
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Aún no tienes proyectos guardados. Diseña un local y usa "💾 Guardar".</div>';
+    return;
+  }
+  grid.innerHTML = "";
+  list.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='proj-card';
+    const date = new Date(p.updatedAt).toLocaleString('es-MX');
+    card.innerHTML = `
+      <img src="${p.thumb || ''}" alt="${p.name}">
+      <div class="pc-body">
+        <div class="pc-name">${p.name}</div>
+        <div class="pc-date">${date}</div>
+      </div>
+      <div class="pc-actions">
+        <button class="open">Abrir</button>
+        <button class="dup">Duplicar</button>
+        <button class="ren">Renombrar</button>
+        <button class="del">Eliminar</button>
+      </div>
+    `;
+    card.querySelector('.open').onclick = async ()=>{
+      const full = await loadProjectFull(p.id);
+      if(!full || !full.state){ alert('No se pudo abrir el proyecto.'); return; }
+      currentProjectId = full.id; currentProjectName = full.name;
+      applyState(full.state); updateHeader();
+      projectsModal.classList.remove('open');
+    };
+    card.querySelector('img').onclick = ()=> card.querySelector('.open').click();
+    card.querySelector('.dup').onclick = async (e)=>{
+      e.stopPropagation();
+      const full = await loadProjectFull(p.id);
+      if(!full || !full.state) return;
+      const copy = { id:'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), name: p.name+' (copia)', updatedAt: Date.now(), thumb: p.thumb, state: full.state };
+      await persistProject(copy, false);
+      renderProjectsGrid();
+    };
+    card.querySelector('.ren').onclick = async (e)=>{
+      e.stopPropagation();
+      const nn = prompt('Nuevo nombre:', p.name);
+      if(!nn) return;
+      const full = await loadProjectFull(p.id);
+      if(!full) return;
+      const updated = {...full, name: nn, updatedAt: Date.now()};
+      await persistProject(updated, true);
+      if(currentProjectId===p.id){ currentProjectName=nn; updateHeader(); }
+      renderProjectsGrid();
+    };
+    card.querySelector('.del').onclick = async (e)=>{
+      e.stopPropagation();
+      if(!confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) return;
+      await removeProject(p.id);
+      if(currentProjectId===p.id){ currentProjectId=null; currentProjectName=null; updateHeader(); }
+      renderProjectsGrid();
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* ---------------- Deploy info modal ---------------- */
+const deployModal = document.getElementById('deployModal');
+document.getElementById('deployBtn').addEventListener('click', ()=> deployModal.classList.add('open'));
+document.getElementById('closeDeployBtn').addEventListener('click', ()=> deployModal.classList.remove('open'));
+document.getElementById('downloadHtmlBtn').addEventListener('click', ()=>{
+  const blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'index.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+/* ---------------- init ---------------- */
+resizeCanvasToContainer();
+updateCostPanel();
+updateSelectionPanel();
+updateHeader();
+})();
+</script>
+</body>
+</html>
