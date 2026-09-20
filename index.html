@@ -136,6 +136,17 @@ header h1 span{display:block; font-size:12px; font-weight:400; color:var(--muted
 .proj-card .pc-actions button.del{color:var(--danger); border-color:var(--danger);}
 .deploy-box{background:var(--canvas-bg); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12.5px; line-height:1.6; margin-top:6px;}
 .deploy-box code{background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; font-size:11.5px;}
+.ai-pane{padding-top:4px;}
+.ai-log-row{font-size:12.5px; padding:7px 9px; border-radius:7px; background:var(--canvas-bg); border:1px solid var(--border); margin-bottom:6px;}
+.ai-log-row.user{border-left:3px solid var(--accent);}
+.ai-log-row.ai{border-left:3px solid #9b7fd6;}
+.ai-log-row.err{border-left:3px solid var(--danger); color:var(--danger);}
+.warn-row, .pass-row{font-size:12.5px; padding:7px 9px; border-radius:7px; margin-bottom:6px; border:1px solid var(--border);}
+.warn-row{background:rgba(220,38,38,0.08); border-color:rgba(220,38,38,0.3);}
+.pass-row{background:rgba(22,163,74,0.08); border-color:rgba(22,163,74,0.3);}
+.ai-narrative{font-size:13px; line-height:1.6; padding:12px; background:var(--canvas-bg); border:1px solid var(--border); border-radius:8px; margin-top:10px;}
+.spinner-dots::after{content:'...'; animation: dots 1.2s steps(4,end) infinite;}
+@keyframes dots{0%,20%{content:'.'} 40%{content:'..'} 60%,100%{content:'...'}}
 </style>
 </head>
 <body>
@@ -145,6 +156,8 @@ header h1 span{display:block; font-size:12px; font-weight:400; color:var(--muted
   <span class="status-pill" id="areaPill">Área: 0 m²</span>
   <button class="btn" id="uploadPlanBtn">📐 Subir plano</button>
   <input type="file" id="planInput" accept="image/*" style="display:none">
+  <button class="btn" id="detectWallsBtn" disabled title="Sube un plano de referencia primero">🪄 Detectar contorno</button>
+  <button class="btn" id="aiHubBtn">🤖 Asistente IA</button>
   <button class="btn" id="projectsBtn">📁 Mis proyectos</button>
   <button class="btn" id="saveProjectBtn">💾 Guardar</button>
   <button class="btn" id="pdfBtn">📄 Descargar PDF</button>
@@ -248,6 +261,57 @@ header h1 span{display:block; font-size:12px; font-weight:400; color:var(--muted
     </div>
     <div class="modal-body">
       <div class="proj-grid" id="projGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AI hub modal -->
+<div id="aiHubModal" class="modal-overlay">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <h3>🤖 Asistente IA del parametrizador</h3>
+      <button class="btn" id="closeAiHubBtn">Cerrar ✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs" id="aiTabs" style="padding:0 0 10px;">
+        <div class="tab active" data-aitab="chat">Asistente de diseño</div>
+        <div class="tab" data-aitab="suggest">Sugerir distribución inicial</div>
+        <div class="tab" data-aitab="compliance">Validar normativa</div>
+      </div>
+
+      <div class="ai-pane" id="aiPane-chat">
+        <p style="font-size:12.5px; color:var(--muted); margin-top:0;">Pídele en español que agregue, quite o reorganice elementos. Ej: "agrega 3 racks de abarrotes cerca de la entrada" o "quita las sillas".</p>
+        <div class="row2" style="align-items:flex-end;">
+          <div class="field" style="margin-bottom:0; grid-column:1/3;">
+            <label>Instrucción</label>
+            <input type="text" id="aiChatInput" placeholder="agrega un refrigerador junto a la caja">
+          </div>
+        </div>
+        <button class="btn primary" id="aiChatSendBtn" style="margin-top:10px;">Enviar ➤</button>
+        <div id="aiChatLog" class="item-list" style="max-height:260px; margin-top:14px;"></div>
+      </div>
+
+      <div class="ai-pane" id="aiPane-suggest" style="display:none;">
+        <p style="font-size:12.5px; color:var(--muted); margin-top:0;">Describe el giro del negocio y el área disponible; la IA propone una mezcla inicial de mobiliario, racks y servicios.</p>
+        <div class="row2">
+          <div class="field">
+            <label>Giro de negocio</label>
+            <input type="text" id="aiBizType" placeholder="tienda de conveniencia, farmacia, minisúper...">
+          </div>
+          <div class="field">
+            <label>Área disponible (m²)</label>
+            <input type="number" id="aiBizArea" step="0.5">
+          </div>
+        </div>
+        <button class="btn primary" id="aiSuggestBtn">Sugerir distribución ✨</button>
+        <div id="aiSuggestLog" class="item-list" style="max-height:220px; margin-top:14px;"></div>
+      </div>
+
+      <div class="ai-pane" id="aiPane-compliance" style="display:none;">
+        <p style="font-size:12.5px; color:var(--muted); margin-top:0;">Revisión orientativa de anchos de pasillo, traslapes y proporción de circulación. No sustituye el dictamen de un arquitecto certificado ni de Protección Civil.</p>
+        <button class="btn primary" id="aiRunComplianceBtn">Ejecutar revisión ✅</button>
+        <div id="complianceResults" style="margin-top:14px;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -711,6 +775,8 @@ document.getElementById('planInput').addEventListener('change', (e)=>{
     const img = new Image();
     img.onload = ()=>{
       planImage = { img, width: img.width, height: img.height, scaleM: 0.02, dataURL: ev.target.result };
+      document.getElementById('detectWallsBtn').disabled = false;
+      document.getElementById('detectWallsBtn').title = 'Detectar el contorno del local con IA a partir del plano subido';
       draw();
     };
     img.src = ev.target.result;
@@ -1094,7 +1160,10 @@ function capture3D(){
   return dataURL;
 }
 
-function generatePDF(){
+async function generatePDF(){
+  const pdfBtn = document.getElementById('pdfBtn');
+  const oldLabel = pdfBtn.innerHTML; pdfBtn.innerHTML = '⏳ Generando…'; pdfBtn.disabled = true;
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const pageW = doc.internal.pageSize.getWidth();
@@ -1109,7 +1178,21 @@ function generatePDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90);
   doc.text(`Proyecto: ${name}`, margin, y); y+=16;
   doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, margin, y); y+=16;
-  doc.text(`Área construida (según contorno trazado): ${c.area.toFixed(1)} m²`, margin, y); y+=22;
+  doc.text(`Área construida (según contorno trazado): ${c.area.toFixed(1)} m²`, margin, y); y+=20;
+
+  // Resumen ejecutivo generado por IA (opcional — si la API no responde, se omite sin romper el PDF)
+  try{
+    const narrative = await callAIEndpoint('/api/ai/narrative', {
+      kind: 'pdf_summary',
+      payload: { area: c.area, costs: c, itemCounts: currentStateSummaryForAI().itemCounts, aisleCount: aisles.length }
+    });
+    if(narrative.text){
+      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('Resumen ejecutivo', margin, y); y+=15;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(50);
+      const lines = doc.splitTextToSize(narrative.text, pageW-margin*2);
+      doc.text(lines, margin, y); y += lines.length*13 + 12;
+    }
+  }catch(e){ /* sin resumen de IA, el PDF continúa normal */ }
 
   doc.setTextColor(20);
   doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('Desglose de costos', margin, y); y+=18;
@@ -1162,6 +1245,7 @@ function generatePDF(){
   doc.addImage(img3d, 'PNG', margin, margin+20, imgW3, imgH3);
 
   doc.save(`${name.replace(/[^a-z0-9-_]+/gi,'_')}-resumen.pdf`);
+  pdfBtn.innerHTML = oldLabel; pdfBtn.disabled = false;
 }
 
 /* ---------------- Save / load projects ----------------
@@ -1402,6 +1486,268 @@ document.getElementById('downloadHtmlBtn').addEventListener('click', ()=>{
   a.href = url; a.download = 'index.html';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+});
+
+/* ==================================================================
+   AI FEATURES — todas pasan por Functions de Cloudflare (/api/ai/...)
+   que a su vez llaman a la API de Anthropic con la clave guardada como
+   secreto del servidor. Si esas rutas no existen todavía (por ejemplo
+   mientras pruebas este archivo sin desplegar, o el secreto no está
+   configurado), cada llamada falla de forma controlada y se lo dice al
+   usuario en vez de romper la app.
+   ================================================================== */
+
+function currentStateSummaryForAI(){
+  const counts = {};
+  scenePlaced.forEach(it=>{ const c=findCatalogItem(it.catKey); if(c) counts[c.name]=(counts[c.name]||0)+1; });
+  return {
+    areaM2: computeArea(),
+    itemCounts: Object.entries(counts).map(([name,count])=>({name,count})),
+    aisleCount: aisles.length,
+  };
+}
+
+async function callAIEndpoint(path, body){
+  const res = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok){
+    const detail = data && data.error === 'missing_api_key'
+      ? 'Falta configurar ANTHROPIC_API_KEY en el proyecto de Cloudflare Pages.'
+      : (data && data.detail) || (data && data.error) || `Error ${res.status}`;
+    throw new Error(detail);
+  }
+  return data;
+}
+
+/* --- Zonas: traduce una zona ("entrance","back",...) a un punto en metros --- */
+function getBoundsForZones(){
+  if(wallPolygon.closed && wallPolygon.length>=3) return computeBounds();
+  return {minX:0, maxX:10, minY:0, maxY:8};
+}
+function zoneToPoint(zone, seq){
+  const b = getBoundsForZones();
+  const w = Math.max(2, b.maxX-b.minX), h = Math.max(2, b.maxY-b.minY);
+  const pad = 0.7, spacing = 1.3;
+  const alongX = (n)=> b.minX + pad + (n*spacing) % Math.max(1,(w-2*pad));
+  const alongY = (n)=> b.minY + pad + (n*spacing) % Math.max(1,(h-2*pad));
+  switch(zone){
+    case 'entrance': return {x: alongX(seq), y: b.minY+pad};
+    case 'back': return {x: alongX(seq), y: b.maxY-pad};
+    case 'left': return {x: b.minX+pad, y: alongY(seq)};
+    case 'right': return {x: b.maxX-pad, y: alongY(seq)};
+    case 'near_counter': {
+      const counter = scenePlaced.find(it=>it.catKey==='mostrador');
+      if(counter) return {x: counter.x + pad*1.6 + seq*spacing*0.6, y: counter.y};
+      return {x: (b.minX+b.maxX)/2 + seq*spacing*0.6, y: (b.minY+b.maxY)/2};
+    }
+    case 'center':
+    default: {
+      const cols = Math.max(1, Math.floor((w-2*pad)/spacing));
+      const col = seq % cols, row = Math.floor(seq/cols);
+      return {x: b.minX+pad+col*spacing, y: (b.minY+b.maxY)/2 - pad + row*spacing};
+    }
+  }
+}
+function zoneLabel(zone){
+  return {entrance:'entrada', back:'fondo', left:'lado izquierdo', right:'lado derecho', center:'centro', near_counter:'junto al mostrador'}[zone] || zone;
+}
+
+/* --- Aplica las acciones devueltas por /api/ai/layout-assistant o /api/ai/suggest-layout --- */
+function applyAIActions(actions){
+  pushHistory();
+  const zoneSeq = {};
+  const log = [];
+  actions.forEach(act=>{
+    if(act.type==='add'){
+      const cat = findCatalogItem(act.catKey);
+      if(!cat){ log.push({type:'err', text:`Elemento de catálogo desconocido: "${act.catKey}"`}); return; }
+      const count = Math.max(1, Math.min(20, act.count||1));
+      const zone = act.zone || 'center';
+      zoneSeq[zone] = zoneSeq[zone] || 0;
+      for(let i=0;i<count;i++){
+        const p = zoneToPoint(zone, zoneSeq[zone]++);
+        scenePlaced.push({id: uidCounter++, catKey: act.catKey, x: snap(p.x), y: snap(p.y), rot: act.rot||0});
+      }
+      log.push({type:'ai', text:`➕ ${count}× ${cat.name} (${zoneLabel(zone)})`});
+    } else if(act.type==='remove_type'){
+      const cat = findCatalogItem(act.catKey);
+      const limit = act.count || 999;
+      let removed = 0;
+      scenePlaced = scenePlaced.filter(it=>{
+        if(it.catKey===act.catKey && removed<limit){ removed++; return false; }
+        return true;
+      });
+      log.push({type:'ai', text:`🗑️ Quitados ${removed}× ${cat ? cat.name : act.catKey}`});
+    } else if(act.type==='clear_all_items'){
+      scenePlaced = [];
+      log.push({type:'ai', text:'🗑️ Se vació todo el mobiliario colocado.'});
+    } else if(act.type==='note' && act.text){
+      log.push({type:'ai', text:'💬 '+act.text});
+    }
+  });
+  if(selection && !scenePlaced.find(x=>x.id===selection.id)) selection = null;
+  draw(); updateCostPanel(); updateSelectionPanel();
+  return log;
+}
+function applySuggestedItems(items, note){
+  const actions = items.map(it=>({type:'add', catKey:it.catKey, count:it.count, zone:it.zone||'center'}));
+  if(note) actions.push({type:'note', text:note});
+  return applyAIActions(actions);
+}
+
+/* --- Modal hub: tabs --- */
+const aiHubModal = document.getElementById('aiHubModal');
+document.getElementById('aiHubBtn').addEventListener('click', ()=> aiHubModal.classList.add('open'));
+document.getElementById('closeAiHubBtn').addEventListener('click', ()=> aiHubModal.classList.remove('open'));
+document.querySelectorAll('#aiTabs .tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('#aiTabs .tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    ['chat','suggest','compliance'].forEach(name=>{
+      document.getElementById('aiPane-'+name).style.display = (name===tab.dataset.aitab) ? 'block' : 'none';
+    });
+  });
+});
+
+/* --- Feature 1: asistente de layout por lenguaje natural --- */
+function addAiChatRow(type, text){
+  const log = document.getElementById('aiChatLog');
+  const row = document.createElement('div');
+  row.className = 'ai-log-row ' + type;
+  row.textContent = text;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+async function sendAiChat(){
+  const input = document.getElementById('aiChatInput');
+  const instruction = input.value.trim();
+  if(!instruction) return;
+  addAiChatRow('user', '🧑 ' + instruction);
+  input.value = '';
+  const btn = document.getElementById('aiChatSendBtn');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = 'Pensando…';
+  try{
+    const data = await callAIEndpoint('/api/ai/layout-assistant', { instruction, state: currentStateSummaryForAI() });
+    const log = applyAIActions(data.actions || []);
+    log.forEach(l=> addAiChatRow(l.type, l.text));
+  }catch(err){
+    addAiChatRow('err', '⚠️ No se pudo procesar: ' + err.message);
+  }
+  btn.disabled = false; btn.textContent = old;
+}
+document.getElementById('aiChatSendBtn').addEventListener('click', sendAiChat);
+document.getElementById('aiChatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendAiChat(); });
+
+/* --- Feature 3: sugerir distribución inicial --- */
+document.getElementById('aiSuggestBtn').addEventListener('click', async ()=>{
+  const bizType = document.getElementById('aiBizType').value.trim();
+  let area = parseFloat(document.getElementById('aiBizArea').value);
+  if(!bizType){ alert('Describe el giro de negocio primero.'); return; }
+  if(!area){ area = computeArea(); document.getElementById('aiBizArea').value = area || ''; }
+  if(!area){ alert('Escribe un área en m², o traza primero el contorno del local en el plano.'); return; }
+  const logEl = document.getElementById('aiSuggestLog');
+  logEl.innerHTML = '<div class="empty">Generando propuesta…</div>';
+  const btn = document.getElementById('aiSuggestBtn'); btn.disabled = true;
+  try{
+    const data = await callAIEndpoint('/api/ai/suggest-layout', { businessType: bizType, areaM2: area });
+    logEl.innerHTML = '';
+    const log = applySuggestedItems(data.items || [], data.note);
+    log.forEach(l=>{
+      const row = document.createElement('div');
+      row.className = 'ai-log-row ' + l.type;
+      row.textContent = l.text;
+      logEl.appendChild(row);
+    });
+  }catch(err){
+    logEl.innerHTML = `<div class="ai-log-row err">⚠️ No se pudo generar la propuesta: ${err.message}</div>`;
+  }
+  btn.disabled = false;
+});
+
+/* --- Feature 2: detectar contorno del plano subido con visión --- */
+document.getElementById('detectWallsBtn').addEventListener('click', async ()=>{
+  if(!planImage) return;
+  const btn = document.getElementById('detectWallsBtn');
+  const old = btn.textContent; btn.textContent = '🪄 Analizando…'; btn.disabled = true;
+  try{
+    const base64 = planImage.dataURL.split(',')[1];
+    const mediaType = (planImage.dataURL.match(/^data:([^;]+);/) || [,'image/png'])[1];
+    const data = await callAIEndpoint('/api/ai/detect-walls', { imageBase64: base64, mediaType });
+    if(!data.polygon || data.polygon.length<3){
+      alert('No se pudo detectar un contorno claro en el plano.' + (data.note ? ' '+data.note : ' Prueba trazándolo a mano con "🧱 Trazar muro/local".'));
+    } else {
+      pushHistory();
+      const imgWm = planImage.width * planImage.scaleM;
+      const imgHm = planImage.height * planImage.scaleM;
+      wallPolygon = data.polygon.map(([nx,ny])=>({x: snap(nx*imgWm), y: snap(ny*imgHm)}));
+      wallPolygon.closed = true;
+      draw(); updateCostPanel();
+    }
+  }catch(err){
+    alert('No se pudo analizar el plano: ' + err.message);
+  }
+  btn.textContent = old; btn.disabled = false;
+});
+
+/* --- Feature 4: validar normativa (reglas deterministas + narrativa IA opcional) --- */
+function runComplianceCheck(){
+  const warnings = [], passes = [];
+  const area = computeArea();
+  const MIN_AISLE = 0.90;
+
+  if(!wallPolygon.closed) warnings.push('No has trazado el contorno del local — no se puede evaluar la circulación total ni el % de área en pasillos.');
+
+  aisles.forEach((a,i)=>{
+    const minSide = Math.min(a.w, a.d);
+    if(minSide < MIN_AISLE) warnings.push(`Pasillo #${i+1}: ${minSide.toFixed(2)} m de ancho, por debajo del mínimo recomendado (${MIN_AISLE} m).`);
+    else passes.push(`Pasillo #${i+1}: ${minSide.toFixed(2)} m — cumple el mínimo recomendado.`);
+  });
+  if(aisles.length===0 && scenePlaced.length>0) warnings.push('No has definido ningún pasillo; sin ellos es difícil garantizar circulación mínima entre racks y mobiliario.');
+
+  for(let i=0;i<scenePlaced.length;i++){
+    for(let j=i+1;j<scenePlaced.length;j++){
+      const A = scenePlaced[i], B = scenePlaced[j];
+      const ca = findCatalogItem(A.catKey), cb = findCatalogItem(B.catKey);
+      if(!ca || !cb) continue;
+      const overlapX = Math.abs(A.x-B.x) < (ca.w+cb.w)/2 - 0.05;
+      const overlapY = Math.abs(A.y-B.y) < (ca.d+cb.d)/2 - 0.05;
+      if(overlapX && overlapY) warnings.push(`Posible traslape entre "${ca.name}" y "${cb.name}" — revisa sus posiciones (este chequeo no considera rotación).`);
+    }
+  }
+
+  if(area>0){
+    const aisleArea = aisles.reduce((s,a)=> s + a.w*a.d, 0);
+    const pct = (aisleArea/area)*100;
+    if(pct < 15) warnings.push(`El área de pasillos es ${pct.toFixed(1)}% del total — se recomienda al menos 15-20% para circulación cómoda.`);
+    else passes.push(`Área de pasillos: ${pct.toFixed(1)}% del total — dentro de un rango razonable.`);
+  }
+  return {warnings, passes, area};
+}
+
+document.getElementById('aiRunComplianceBtn').addEventListener('click', async ()=>{
+  const result = runComplianceCheck();
+  const box = document.getElementById('complianceResults');
+  box.innerHTML = '';
+  if(result.warnings.length===0 && result.passes.length===0){
+    box.innerHTML = '<div class="empty">Aún no hay suficiente información (traza el contorno y coloca algunos elementos).</div>';
+    return;
+  }
+  result.warnings.forEach(w=>{
+    const d = document.createElement('div'); d.className='warn-row'; d.textContent = '⚠️ '+w; box.appendChild(d);
+  });
+  result.passes.forEach(p=>{
+    const d = document.createElement('div'); d.className='pass-row'; d.textContent = '✅ '+p; box.appendChild(d);
+  });
+  const narrativeBox = document.createElement('div');
+  narrativeBox.className = 'ai-narrative';
+  narrativeBox.innerHTML = '<span class="spinner-dots">Generando recomendación con IA</span>';
+  box.appendChild(narrativeBox);
+  try{
+    const data = await callAIEndpoint('/api/ai/narrative', { kind:'compliance', payload: result });
+    narrativeBox.textContent = data.text;
+  }catch(err){
+    narrativeBox.textContent = '⚠️ No se pudo generar la recomendación con IA: ' + err.message + ' (los hallazgos de arriba siguen siendo válidos, son cálculo local).';
+  }
 });
 
 /* ---------------- init ---------------- */
