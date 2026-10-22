@@ -147,9 +147,44 @@ header h1 span{display:block; font-size:12px; font-weight:400; color:var(--muted
 .ai-narrative{font-size:13px; line-height:1.6; padding:12px; background:var(--canvas-bg); border:1px solid var(--border); border-radius:8px; margin-top:10px;}
 .spinner-dots::after{content:'...'; animation: dots 1.2s steps(4,end) infinite;}
 @keyframes dots{0%,20%{content:'.'} 40%{content:'..'} 60%,100%{content:'...'}}
+/* Acceso con PIN */
+#pinGate{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:var(--bg);padding:16px;}
+#pinGate form{width:100%;max-width:320px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px;text-align:center;}
+#pinGate h2{margin:0 0 6px;font-size:18px;color:var(--text);}
+#pinGate p{margin:0 0 18px;font-size:13px;color:var(--muted);}
+#pinGate input{width:100%;font-size:24px;letter-spacing:.5em;text-align:center;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--canvas-bg);color:var(--text);}
+#pinGate button{width:100%;margin-top:12px;padding:10px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:15px;cursor:pointer;}
+#pinGate .err{min-height:18px;margin-top:10px;font-size:13px;color:var(--danger);}
 </style>
 </head>
 <body>
+<div id="pinGate">
+  <form id="pinForm" autocomplete="off">
+    <h2>Parametrizador</h2>
+    <p>Ingresa el PIN de acceso</p>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*" autofocus>
+    <button type="submit">Entrar</button>
+    <div class="err" id="pinErr"></div>
+  </form>
+</div>
+<script>
+(function(){
+  var PIN = "1234", KEY = "param_pin_ok";
+  var gate = document.getElementById("pinGate");
+  try { if (sessionStorage.getItem(KEY) === "1") { gate.remove(); return; } } catch(e) {}
+  document.getElementById("pinForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var inp = document.getElementById("pinInput");
+    if (inp.value === PIN) {
+      try { sessionStorage.setItem(KEY, "1"); } catch(e) {}
+      gate.remove();
+    } else {
+      document.getElementById("pinErr").textContent = "PIN incorrecto";
+      inp.value = ""; inp.focus();
+    }
+  });
+})();
+</script>
 
 <header>
   <h1 id="headerTitle">🏬 Parametrizador de Puntos de Venta<span id="projSubtitle">Sin guardar aún · Diseña la planta, coloca mobiliario y estima costos</span></h1>
